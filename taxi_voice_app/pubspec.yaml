@@ -45,6 +45,7 @@ dependencies:
   # Supabase dependencies
   supabase_flutter: ^2.3.4
   shared_preferences: ^2.2.3
+  socket_io_client: ^2.0.2
 
 dev_dependencies:
   flutter_test:

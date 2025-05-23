@@ -55,6 +55,18 @@ class _HomeScreenState extends State<HomeScreen> {
     'do not'
   ];
 
+  // Driver-related keywords
+  final List<String> _driverKeywords = [
+    'driver',
+    'drive',
+    'driving',
+    'work',
+    'job',
+    'dashboard',
+    'earn',
+    'money',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -188,6 +200,25 @@ class _HomeScreenState extends State<HomeScreen> {
     return false;
   }
 
+  // Check if the command contains driver-related keywords
+  bool _isDriverCommand(String command) {
+    command = command.toLowerCase();
+
+    if (command.contains('driver mode') ||
+        command.contains('driver dashboard')) {
+      return true;
+    }
+
+    // Check for combinations of driver-related keywords
+    for (var keyword in _driverKeywords) {
+      if (command.contains(keyword)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   void _startListening() async {
     // Don't start listening if currently speaking
     if (_isSpeaking) {
@@ -223,7 +254,7 @@ class _HomeScreenState extends State<HomeScreen> {
               message += "Hello ${_currentUser!['name']}. ";
             }
             message +=
-                "How can I help you? Say 'book' for a ride or 'cancel' to cancel a ride.";
+                "How can I help you? Say 'book' for a ride, 'cancel' to cancel a ride, or 'driver mode' to work as a driver.";
 
             await _speak(message);
           }
@@ -246,13 +277,16 @@ class _HomeScreenState extends State<HomeScreen> {
               context,
               MaterialPageRoute(builder: (context) => CancelScreen()),
             );
+          } else if (_isDriverCommand(_command)) {
+            await _speak("Opening driver dashboard.");
+            Navigator.pushNamed(context, '/driver_dashboard');
           } else if (_command.toLowerCase().contains('logout')) {
             await _speak("Logging you out.");
             await _supabaseService.logout();
             Navigator.pushReplacementNamed(context, '/register');
           } else if (_command.isNotEmpty) {
             await _speak(
-                "I didn't understand that. Please say 'book' for a ride or 'cancel' to cancel an existing ride.");
+                "I didn't understand that. Please say 'book' for a ride, 'cancel' to cancel an existing ride, or 'driver mode' to work as a driver.");
           }
         }
       },
@@ -383,6 +417,31 @@ class _HomeScreenState extends State<HomeScreen> {
                             fontSize: 18,
                             fontStyle: FontStyle.italic,
                             color: Colors.white.withOpacity(0.8),
+                          ),
+                        ),
+                      ),
+
+                      SizedBox(height: 30),
+
+                      // Driver mode button
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/driver_dashboard');
+                        },
+                        icon: Icon(Icons.directions_car, color: Colors.amber),
+                        label: Text(
+                          'DRIVER MODE',
+                          style: TextStyle(
+                            color: Colors.amber,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 10),
+                          side: BorderSide(color: Colors.amber),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
                           ),
                         ),
                       ),

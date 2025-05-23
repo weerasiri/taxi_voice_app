@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import '../services/driver_service.dart';
+import '../services/socket_service.dart';
 
 class DriverScreen extends StatefulWidget {
   @override
@@ -12,12 +14,36 @@ class _DriverScreenState extends State<DriverScreen> {
   bool _isListening = false;
   String _command = '';
   final FlutterTts _tts = FlutterTts();
+  final DriverService _driverService = DriverService();
+  final SocketService _socketService = SocketService();
+
+  // Ride details
+  String _rideId = '';
+  String _pickup = '';
+  String _destination = '';
+  String _userName = '';
+  bool _rideStarted = false;
+  bool _rideCompleted = false;
 
   @override
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
-    _initializeVoiceControl();
+
+    // Slight delay to allow the arguments to be processed
+    Future.delayed(Duration.zero, () {
+      final args =
+          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if (args != null) {
+        setState(() {
+          _rideId = args['rideId'] ?? '';
+          _pickup = args['pickup'] ?? '';
+          _destination = args['destination'] ?? '';
+          _userName = args['userName'] ?? '';
+        });
+      }
+      _initializeVoiceControl();
+    });
   }
 
   Future<void> _initializeVoiceControl() async {
@@ -33,7 +59,7 @@ class _DriverScreenState extends State<DriverScreen> {
           setState(() => _isListening = false);
           // Restart listening after a short delay
           Future.delayed(Duration(milliseconds: 500), () {
-            if (!_isListening) _startListening();
+            if (!_isListening && !_rideCompleted) _startListening();
           });
         }
       },
@@ -41,9 +67,14 @@ class _DriverScreenState extends State<DriverScreen> {
 
     if (available) {
       // Speak driver details first
-      await _speak(
-        "Your driver is on the way. His name is John. Car number ABC-1234.",
-      );
+      String message = "You are driving to pick up $_userName.";
+      if (_pickup.isNotEmpty) {
+        message += " Pickup location is $_pickup.";
+      }
+      if (_destination.isNotEmpty) {
+        message += " Destination is $_destination.";
+      }
+      await _speak(message);
       // Start listening immediately after speaking
       _startListening();
     } else {
@@ -76,7 +107,7 @@ class _DriverScreenState extends State<DriverScreen> {
 
   // Function to start speech recognition
   void _startListening() async {
-    if (_isListening) return;
+    if (_isListening || _rideCompleted) return;
 
     try {
       if (await _speech.hasPermission) {
@@ -96,14 +127,37 @@ class _DriverScreenState extends State<DriverScreen> {
 
               if (command.contains('cancel') && command.contains('ride')) {
                 await _speak("Cancelling your ride.");
-                Navigator.pushNamed(context, '/cancel');
+                Navigator.pushReplacementNamed(context, '/cancel');
               } else if (command.contains('send') &&
                   command.contains('message')) {
                 await _speak("Sending a voice message.");
                 Navigator.pushNamed(context, '/message');
-              } else if (command.isNotEmpty) {
+              } else if (command.contains('start') &&
+                  command.contains('ride') &&
+                  !_rideStarted) {
+                await _speak("Starting the ride.");
+                setState(() => _rideStarted = true);
+                _startTrip();
+              } else if (command.contains('complete') &&
+                  command.contains('ride') &&
+                  _rideStarted &&
+                  !_rideCompleted) {
+                await _speak("Completing the ride.");
+                _completeTrip();
+              } else if ((command.contains('navigate') ||
+                      command.contains('directions')) &&
+                  !_rideStarted) {
+                await _speak("Providing directions to pickup location.");
+                // Implement actual navigation logic here
+              } else if (command.isNotEmpty && !_rideStarted) {
                 await _speak(
-                  "I didn't catch that. Please say either Cancel ride or Send message.",
+                  "Available commands: Start ride, Navigate to pickup, Send message, or Cancel ride.",
+                );
+              } else if (command.isNotEmpty &&
+                  _rideStarted &&
+                  !_rideCompleted) {
+                await _speak(
+                  "Available commands: Complete ride, Send message, or Cancel ride.",
                 );
               }
             }
@@ -123,53 +177,114 @@ class _DriverScreenState extends State<DriverScreen> {
     } catch (e) {
       print('Listen error: $e');
       setState(() => _isListening = false);
-      _startListening(); // Try to restart listening
+      if (!_rideCompleted) _startListening(); // Try to restart listening
     }
   }
 
-  // Function to simulate trip starting and ending
+  // Function to simulate trip starting
   void _startTrip() async {
-    await _speak("Your driver has arrived. The trip is starting now.");
-    // Simulate showing route tracking (you can replace this with a map widget)
+    await _speak("Your ride with $_userName is starting now.");
+    // Implement actual trip tracking here if needed
     setState(() {
-      // Trigger the UI to show tracking
+      _rideStarted = true;
     });
+  }
 
-    // Simulate trip ending after some time
-    Future.delayed(Duration(seconds: 30), () async {
-      await _speak("Your trip has ended. Proceeding to payment.");
-      // Show payment options or navigate to payment screen
-      Navigator.pushNamed(context, '/payment');
-    });
+  // Function to complete the trip
+  void _completeTrip() async {
+    try {
+      if (_rideId.isNotEmpty) {
+        final driverData = await _driverService.getCurrentDriver();
+        if (driverData != null) {
+          await _driverService.completeRide(_rideId, driverData['id']);
+
+          setState(() {
+            _rideCompleted = true;
+          });
+
+          await _speak(
+              "Your trip has been completed. Thank you for using our service.");
+
+          // Navigate to payment screen after a short delay
+          Future.delayed(Duration(seconds: 2), () {
+            Navigator.pushReplacementNamed(context, '/payment');
+          });
+        }
+      }
+    } catch (e) {
+      print('Error completing ride: $e');
+      await _speak(
+          "There was an error completing your ride. Please try again.");
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Driver Info")),
+      appBar: AppBar(title: Text(_rideStarted ? "Active Ride" : "Driver Info")),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [
-            Icon(Icons.directions_car, size: 100, color: Colors.amber),
+            Icon(
+              _rideStarted ? Icons.directions_car_filled : Icons.directions_car,
+              size: 100,
+              color: Colors.amber,
+            ),
             SizedBox(height: 20),
-            Text("Driver: John", style: TextStyle(fontSize: 24)),
-            Text("Car Number: ABC-1234", style: TextStyle(fontSize: 22)),
-            Text("ETA: 5 minutes", style: TextStyle(fontSize: 22)),
+            Text(
+              _rideStarted ? "Ride in progress" : "Pickup: $_pickup",
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 10),
+            Text(
+              _rideStarted
+                  ? "Destination: $_destination"
+                  : "Passenger: $_userName",
+              style: TextStyle(fontSize: 22),
+            ),
+            if (!_rideStarted && _destination.isNotEmpty)
+              Text("Destination: $_destination",
+                  style: TextStyle(fontSize: 22)),
             SizedBox(height: 30),
             Text(
-              'Say "Cancel ride" to cancel the ride or "Send message" to send a voice message.',
+              _rideStarted
+                  ? 'Say "Complete ride" to complete the ride or "Send message" to send a voice message.'
+                  : 'Say "Start ride" to begin the trip, "Navigate to pickup" for directions, or "Cancel ride" to cancel.',
               style: TextStyle(fontSize: 18),
+              textAlign: TextAlign.center,
             ),
             SizedBox(height: 30),
             Text(
-              'Command: $_command',
+              'Last command: $_command',
               style: TextStyle(fontSize: 18, fontStyle: FontStyle.italic),
             ),
             SizedBox(height: 30),
+            if (!_rideStarted)
+              ElevatedButton(
+                onPressed: _startTrip,
+                child: Text('Start Ride'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: Size(double.infinity, 50),
+                ),
+              ),
+            if (_rideStarted && !_rideCompleted)
+              ElevatedButton(
+                onPressed: _completeTrip,
+                child: Text('Complete Ride'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: Size(double.infinity, 50),
+                ),
+              ),
           ],
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _speech.stop();
+    super.dispose();
   }
 }

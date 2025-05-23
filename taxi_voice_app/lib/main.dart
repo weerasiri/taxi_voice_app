@@ -8,6 +8,7 @@ import 'screens/sos_screen.dart';
 import 'screens/payment_screen.dart';
 import 'screens/registration_screen.dart';
 import 'services/supabase_service.dart';
+import 'driver/driver_dashboard.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,6 +62,7 @@ class MyApp extends StatelessWidget {
         '/cancel': (context) => CancelScreen(),
         '/sos': (context) => SosScreen(),
         '/payment': (context) => PaymentScreen(),
+        '/driver_dashboard': (context) => DriverDashboard(),
       },
     );
   }
