@@ -276,6 +276,18 @@ class _BookingScreenState extends State<BookingScreen> {
           );
         });
       }
+
+      // Also check if ride is completed (in case we're still on this screen)
+      if (rideData['status'] == 'completed' && mounted) {
+        print('Ride $_rideId completed via Supabase polling');
+
+        // Navigate to payment screen
+        Navigator.pushReplacementNamed(
+          context,
+          '/payment',
+          arguments: {'rideId': _rideId},
+        );
+      }
     });
   }
 

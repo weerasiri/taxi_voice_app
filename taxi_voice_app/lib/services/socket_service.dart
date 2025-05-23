@@ -162,6 +162,31 @@ class SocketService {
           _removeRideRequest(rideId);
         }
       });
+
+      // Listen for ride completion updates
+      _socket?.on('rideCompleted', (data) {
+        print('Ride completed event received: $data');
+        Map<String, dynamic> completeData;
+
+        if (data is Map) {
+          completeData = Map<String, dynamic>.from(data);
+        } else if (data is String) {
+          completeData = jsonDecode(data);
+        } else {
+          print('Unknown data format for ride completion: ${data.runtimeType}');
+          return;
+        }
+
+        final String rideId = completeData['rideId'] ?? '';
+
+        // Notify listeners that a ride was completed
+        // This will be handled by the driver_screen to navigate to payment
+        if (!isDriver) {
+          // If this is a client app, handle the completion
+          print('Ride $rideId has been completed by the driver');
+          // The app will poll for status changes to handle this
+        }
+      });
     } catch (e) {
       print('Socket initialization error: $e');
       _startReconnectTimer(clientId);
@@ -329,4 +354,21 @@ class SocketService {
 
   // Check if socket is connected
   bool get isConnected => _socket?.connected ?? false;
+
+  // Complete a ride
+  void completeRide(String rideId, String driverId) {
+    if (rideId.isEmpty) {
+      print('Cannot complete ride: missing ride ID');
+      return;
+    }
+
+    if (_socket != null && _socket!.connected) {
+      print('Completing ride via Socket.io: $rideId by driver: $driverId');
+      _socket!.emit('completeRide', {'rideId': rideId, 'driverId': driverId});
+    } else {
+      print(
+          'Socket not connected - using Supabase directly for ride completion');
+      // The driver_service will handle the Supabase update
+    }
+  }
 }

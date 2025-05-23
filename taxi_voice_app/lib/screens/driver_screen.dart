@@ -43,6 +43,13 @@ class _DriverScreenState extends State<DriverScreen> {
         });
       }
       _initializeVoiceControl();
+
+      // Automatically start the ride after a short delay
+      Future.delayed(Duration(seconds: 2), () {
+        if (!_rideStarted) {
+          _startTrip();
+        }
+      });
     });
   }
 
@@ -85,7 +92,7 @@ class _DriverScreenState extends State<DriverScreen> {
   // Initialize TTS settings
   Future<void> _initTts() async {
     await _tts.setLanguage("en-US");
-    await _tts.setSpeechRate(0.9); // Slightly faster but still clear
+    await _tts.setSpeechRate(0.5); // Slower speech rate for better clarity
     await _tts.setVolume(1.0);
     await _tts.setPitch(1.0);
   }
@@ -196,7 +203,11 @@ class _DriverScreenState extends State<DriverScreen> {
       if (_rideId.isNotEmpty) {
         final driverData = await _driverService.getCurrentDriver();
         if (driverData != null) {
+          // Update ride status in Supabase
           await _driverService.completeRide(_rideId, driverData['id']);
+
+          // Also notify via socket for real-time updates
+          _socketService.completeRide(_rideId, driverData['id']);
 
           setState(() {
             _rideCompleted = true;
@@ -207,7 +218,8 @@ class _DriverScreenState extends State<DriverScreen> {
 
           // Navigate to payment screen after a short delay
           Future.delayed(Duration(seconds: 2), () {
-            Navigator.pushReplacementNamed(context, '/payment');
+            Navigator.pushReplacementNamed(context, '/payment',
+                arguments: {'rideId': _rideId});
           });
         }
       }

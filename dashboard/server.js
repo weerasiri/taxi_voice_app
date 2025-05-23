@@ -194,6 +194,51 @@ io.on('connection', (socket) => {
     socket.driverId = data.driverId;
   });
   
+  // Handle ride completion
+  socket.on('completeRide', (data) => {
+    console.log('Ride completed by driver:', data.driverId, 'for ride:', data.rideId);
+    
+    // Update the ride in Supabase for redundancy
+    async function updateRideStatus() {
+      try {
+        const now = new Date().toISOString();
+        const { data: rideData, error } = await supabase
+          .from('rides')
+          .update({
+            status: 'completed',
+            completion_time: now
+          })
+          .eq('id', data.rideId)
+          .select()
+          .single();
+          
+        if (error) {
+          console.error('Error updating ride in Supabase:', error);
+        } else {
+          console.log(`Ride ${data.rideId} updated in database to 'completed'`);
+          
+          // Update driver availability
+          const { error: driverError } = await supabase
+            .from('drivers')
+            .update({ is_available: true })
+            .eq('id', data.driverId);
+            
+          if (driverError) {
+            console.error('Error updating driver availability:', driverError);
+          }
+        }
+      } catch (err) {
+        console.error('Error in completeRide socket handler:', err);
+      }
+    }
+    
+    // Broadcast completion to all clients
+    io.emit('rideCompleted', data);
+    
+    // Update database status
+    updateRideStatus();
+  });
+  
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id, socket.driverId ? `(Driver: ${socket.driverId})` : '');
   });
