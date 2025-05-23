@@ -3,6 +3,15 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
 class BookingScreen extends StatefulWidget {
+  final String userName;
+  final String phoneNumber;
+
+  const BookingScreen({
+    Key? key,
+    this.userName = '',
+    this.phoneNumber = '',
+  }) : super(key: key);
+
   @override
   _BookingScreenState createState() => _BookingScreenState();
 }
@@ -33,14 +42,25 @@ class _BookingScreenState extends State<BookingScreen> {
       desiredAccuracy: LocationAccuracy.high,
     );
     setState(() => _currentPosition = position);
-    await _speak(
-      "Your location is set. Ride booked. Driver will be assigned shortly.",
-    );
+
+    String message = "Your location is set.";
+    if (widget.userName.isNotEmpty) {
+      message += " Hello ${widget.userName}.";
+    }
+    message += " Ride booked. Driver will be assigned shortly.";
+
+    await _speak(message);
+
     Future.delayed(Duration(seconds: 2), () {
       Navigator.pushNamed(
         context,
         '/driver',
-      ); // Assuming you have a driver screen
+        arguments: {
+          'userName': widget.userName,
+          'latitude': _currentPosition?.latitude,
+          'longitude': _currentPosition?.longitude,
+        },
+      );
     });
   }
 
@@ -49,20 +69,47 @@ class _BookingScreenState extends State<BookingScreen> {
     return Scaffold(
       appBar: AppBar(title: Text("Confirm Pickup")),
       body: Center(
-        child:
-            _currentPosition == null
-                ? CircularProgressIndicator()
-                : Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.location_on, size: 60, color: Colors.amber),
-                    Text(
-                      "Location:\nLat: ${_currentPosition!.latitude}, Lng: ${_currentPosition!.longitude}",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 20),
+        child: _currentPosition == null
+            ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: Colors.amber),
+                  SizedBox(height: 20),
+                  Text(
+                    "Getting your location...",
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ],
+              )
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (widget.userName.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 20),
+                      child: Text(
+                        "Rider: ${widget.userName}",
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
-                  ],
-                ),
+                  Icon(Icons.location_on, size: 60, color: Colors.amber),
+                  SizedBox(height: 20),
+                  Text(
+                    "Location:",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 24),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Lat: ${_currentPosition!.latitude.toStringAsFixed(4)}\nLng: ${_currentPosition!.longitude.toStringAsFixed(4)}",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ],
+              ),
       ),
     );
   }

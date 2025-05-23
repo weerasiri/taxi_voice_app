@@ -6,8 +6,21 @@ import 'screens/voice_message_screen.dart';
 import 'screens/cancel_screen.dart';
 import 'screens/sos_screen.dart';
 import 'screens/payment_screen.dart';
+import 'screens/registration_screen.dart';
+import 'services/supabase_service.dart';
 
-void main() => runApp(MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await SupabaseService().initialize();
+    print('Supabase initialized successfully');
+  } catch (e) {
+    print('Error initializing Supabase: $e');
+  }
+
+  runApp(MyApp());
+}
 
 class MyApp extends StatelessWidget {
   @override
@@ -28,8 +41,20 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: HomeScreen(),
+      home: FutureBuilder<bool>(
+        future: SupabaseService().isUserLoggedIn(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          }
+
+          final isLoggedIn = snapshot.data ?? false;
+          return isLoggedIn ? HomeScreen() : RegistrationScreen();
+        },
+      ),
       routes: {
+        '/home': (context) => HomeScreen(),
+        '/register': (context) => RegistrationScreen(),
         '/booking': (context) => BookingScreen(),
         '/driver': (context) => DriverScreen(),
         '/message': (context) => VoiceMessageScreen(),
